@@ -1,0 +1,24 @@
+# --- Core data handling ---
+pandas==2.2.2
+numpy==1.26.4
+
+# --- Graph / ring detection (Layer 2) ---
+networkx==3.3
+
+# --- AI Investigator (Layer 3) ---
+google-genai>=1.0.0
+python-dotenv==1.0.1
+
+# --- Dashboard ---
+streamlit==1.38.0
+plotly==5.23.0
+
+# --- Evaluation / calibration ---
+scikit-learn==1.5.1
+matplotlib>=3.8
+
+# --- Synthetic data generation ---
+faker==26.3.0
+
+# --- Testing (optional but recommended) ---
+pytest==8.3.2
