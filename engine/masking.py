@@ -1,7 +1,7 @@
 """
 DAY 4 (build FIRST, before ai_investigator.py) — Privacy-By-Design Masking
 
-Nothing sensitive should ever be sent to the Claude API. This module
+Nothing sensitive should ever be sent to the Gemini API. This module
 anonymizes/masks fields before they leave your pipeline.
 
 Rules:

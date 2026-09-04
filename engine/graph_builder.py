@@ -13,6 +13,7 @@ Also produces a BFS-style plain-English traversal explanation, e.g.:
 """
 
 import os
+import sys
 
 import networkx as nx
 import pandas as pd
@@ -30,6 +31,14 @@ def build_graph(transactions_df):
         G.add_node(acct)
 
     rel_path = os.path.join(DATA_DIR, "account_relationships.csv")
+    if not os.path.exists(rel_path):
+        print(
+            "WARNING: Ring detection unavailable: account_relationships.csv not found. "
+            "Graph will have no edges — ring detection contributes nothing.",
+            file=sys.stderr,
+        )
+        return G
+
     rels = pd.read_csv(rel_path)
 
     for _, row in rels.iterrows():
