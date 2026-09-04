@@ -1163,8 +1163,7 @@ def _themed_bar_chart(data_df, x_col, y_col, title=None, colors=None):
         textposition="outside",
         textfont=dict(color=text_color),
     ))
-    fig.update_layout(
-        title=dict(text=title, font=dict(color=text_color)) if title else None,
+    layout = dict(
         paper_bgcolor=bg_color,
         plot_bgcolor=plot_bg,
         font=dict(color=text_color),
@@ -1176,10 +1175,14 @@ def _themed_bar_chart(data_df, x_col, y_col, title=None, colors=None):
             tickfont=dict(color=muted_color),
             gridcolor=grid_color,
             title=dict(text=y_col, font=dict(color=muted_color)),
+            range=[0, max(data_df[y_col]) * 1.15],
         ),
         margin=dict(l=40, r=20, t=40, b=40),
         height=350,
     )
+    if title:
+        layout["title"] = dict(text=title, font=dict(color=text_color))
+    fig.update_layout(**layout)
     st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------------------------------------------------------------

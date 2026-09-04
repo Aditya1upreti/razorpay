@@ -293,6 +293,34 @@ Return STRICT JSON only — no markdown, no code fences, no preamble, no explana
   "recommended_action": "block" | "allow" | "manual_review"
 }}"""
 
+    # -------------------------------------------------------------------
+    # OLD PROMPT (before fix) — confidence was 45, verdict: insufficient_evidence
+    # The model weighed geo_mismatch=0 equally against velocity=35,
+    # treating "no geo anomaly" as strong counter-evidence to card testing.
+    #
+    # prompt = f"""Two arguments about a transaction. You must reconcile
+    # them into a single verdict.
+    #
+    # ARGUMENT FOR FRAUD:
+    # {argument_for}
+    #
+    # ARGUMENT AGAINST FRAUD:
+    # {argument_against}
+    #
+    # ORIGINAL EVIDENCE:
+    # {formatted_ctx}
+    #
+    # Return STRICT JSON only — no markdown, no code fences, no preamble,
+    # no explanation outside the JSON. Exactly these keys:
+    # {{
+    #   "verdict": "fraud_likely" | "legitimate_likely" |
+    #              "insufficient_evidence",
+    #   "confidence": <integer 0-100>,
+    #   "reasoning": "<ONE short sentence, max 20 words>",
+    #   "recommended_action": "block" | "allow" | "manual_review"
+    # }}"""
+    # -------------------------------------------------------------------
+
     raw = _call_gemini(prompt, max_tokens=2048)
 
     if DEBUG:
