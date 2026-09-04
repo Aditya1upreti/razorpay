@@ -66,6 +66,54 @@ if not st.session_state.get("authenticated", False):
 
     st.stop()
 
+# Current user role (available everywhere after auth gate)
+_user_role = st.session_state.get("user_role", "Admin")
+
+# Role-based tab access
+ROLE_TABS = {
+    "Risk Analyst": [
+        "Summary", "Score a Transaction", "Fraud Case", "Ring Detection",
+        "Ambiguous Case", "Recovery", "Risk Tolerance", "Calibration",
+        "Business Impact", "Impact Story", "Ablation Study", "Investigation Log",
+    ],
+    "Merchant": [
+        "Summary", "Score a Transaction", "Business Impact", "Impact Story",
+    ],
+    "Admin": [
+        "Summary", "Score a Transaction", "Fraud Case", "Ring Detection",
+        "Ambiguous Case", "Recovery", "Risk Tolerance", "Calibration",
+        "Business Impact", "Impact Story", "Ablation Study", "Investigation Log",
+    ],
+}
+
+# Role-based action permissions
+ROLE_ACTIONS = {
+    "Risk Analyst": {
+        "confirm_fraud": True,
+        "override_fraud": False,
+        "escalate": True,
+        "simulate_outage": False,
+        "dataset_selector": False,
+    },
+    "Merchant": {
+        "confirm_fraud": False,
+        "override_fraud": False,
+        "escalate": False,
+        "simulate_outage": False,
+        "dataset_selector": False,
+    },
+    "Admin": {
+        "confirm_fraud": True,
+        "override_fraud": True,
+        "escalate": True,
+        "simulate_outage": True,
+        "dataset_selector": True,
+    },
+}
+
+_allowed_tabs = ROLE_TABS.get(_user_role, ROLE_TABS["Admin"])
+_user_actions = ROLE_ACTIONS.get(_user_role, ROLE_ACTIONS["Admin"])
+
 # ---------------------------------------------------------------------------
 # Theme System — Dark Mode Toggle
 # ---------------------------------------------------------------------------
@@ -74,6 +122,16 @@ if "dark_mode" not in st.session_state:
 
 dark_mode = st.sidebar.toggle("Dark Mode", value=st.session_state.dark_mode, key="dark_mode_toggle")
 st.session_state.dark_mode = dark_mode
+
+st.sidebar.divider()
+if st.sidebar.button("Sign Out", key="btn_logout"):
+    st.session_state.authenticated = False
+    st.session_state.user_role = ""
+    if "current_tab" in st.session_state:
+        del st.session_state.current_tab
+    st.rerun()
+
+st.sidebar.caption(f"Logged in as: **{_user_role}**")
 
 # CSS custom properties for both themes
 LIGHT_CSS = """
@@ -1132,17 +1190,20 @@ DATASET_OPTIONS = {
     "Training Set (222 txns)": "transactions_train.csv",
 }
 
-selected_dataset_label = st.sidebar.selectbox(
-    "Dataset",
-    list(DATASET_OPTIONS.keys()),
-    index=0,
-    key="dataset_selector",
-    help="Switch between the held-out test set (used for evaluation metrics and cached AI results) and the training set.",
-)
-SELECTED_CSV = DATASET_OPTIONS[selected_dataset_label]
+if _user_actions.get("dataset_selector", False):
+    selected_dataset_label = st.sidebar.selectbox(
+        "Dataset",
+        list(DATASET_OPTIONS.keys()),
+        index=0,
+        key="dataset_selector",
+        help="Switch between the held-out test set (used for evaluation metrics and cached AI results) and the training set.",
+    )
+    SELECTED_CSV = DATASET_OPTIONS[selected_dataset_label]
+else:
+    SELECTED_CSV = "transactions_test.csv"
 
 # ---------------------------------------------------------------------------
-# Sidebar Navigation
+# Sidebar Navigation — Role-Based Access
 # ---------------------------------------------------------------------------
 TAB_NAMES = [
     "Summary",
@@ -1161,18 +1222,22 @@ TAB_NAMES = [
 
 if "current_tab" not in st.session_state:
     # Role-based default tab on first login
-    role = st.session_state.get("user_role", "")
     role_defaults = {
         "Risk Analyst": "Ambiguous Case",
         "Merchant": "Business Impact",
         "Admin": "Summary",
     }
-    st.session_state.current_tab = role_defaults.get(role, TAB_NAMES[0])
+    default = role_defaults.get(_user_role, _allowed_tabs[0])
+    st.session_state.current_tab = default if default in _allowed_tabs else _allowed_tabs[0]
+
+# If current tab is not allowed for this role, reset to first allowed
+if st.session_state.current_tab not in _allowed_tabs:
+    st.session_state.current_tab = _allowed_tabs[0]
 
 selected_tab = st.sidebar.radio(
     "Navigate",
-    TAB_NAMES,
-    index=TAB_NAMES.index(st.session_state.current_tab),
+    _allowed_tabs,
+    index=_allowed_tabs.index(st.session_state.current_tab),
     key="nav_radio",
 )
 st.session_state.current_tab = selected_tab
@@ -1862,58 +1927,69 @@ if selected_tab == "Ambiguous Case":
                 elif current_action == "escalate":
                     st.info("Escalated. A senior analyst has been notified and will review within 15 minutes.")
                 else:
-                    btn1, btn2, btn3 = st.columns(3)
-                    if btn1.button("\u2713 Confirm Fraud", key=f"btn_confirm_{selected_amb}"):
-                        st.session_state[action_key] = "confirm_fraud"
-                        st.rerun()
-                    if btn2.button("\u21a9 Override \u2014 Mark Legitimate", key=f"btn_override_{selected_amb}"):
-                        st.session_state[action_key] = "override"
-                        st.rerun()
-                    if btn3.button("\u2191 Escalate to Senior Analyst", key=f"btn_escalate_{selected_amb}"):
-                        st.session_state[action_key] = "escalate"
-                        st.rerun()
+                    can_confirm = _user_actions.get("confirm_fraud", False)
+                    can_override = _user_actions.get("override_fraud", False)
+                    can_escalate = _user_actions.get("escalate", False)
+
+                    if can_confirm or can_override or can_escalate:
+                        btn1, btn2, btn3 = st.columns(3)
+                        if can_confirm:
+                            if btn1.button("\u2713 Confirm Fraud", key=f"btn_confirm_{selected_amb}"):
+                                st.session_state[action_key] = "confirm_fraud"
+                                st.rerun()
+                        if can_override:
+                            if btn2.button("\u21a9 Override \u2014 Mark Legitimate", key=f"btn_override_{selected_amb}"):
+                                st.session_state[action_key] = "override"
+                                st.rerun()
+                        if can_escalate:
+                            if btn3.button("\u2191 Escalate to Senior Analyst", key=f"btn_escalate_{selected_amb}"):
+                                st.session_state[action_key] = "escalate"
+                                st.rerun()
+                    else:
+                        st.caption("You do not have permission to take action on this case. Contact an analyst or admin.")
 
                 # --- Demo Controls: Simulate AI Outage ---
-                st.divider()
-                st.subheader("Demo Controls")
-                st.caption(
-                    "Testing convenience only -- forces a one-time AI outage "
-                    "to demonstrate the graceful-degradation fallback."
-                )
-
-                # Save normal verdict for contrast display
-                normal_verdict = verdict
-                normal_confidence = confidence
-                normal_action = action
-
-                if st.button("Simulate AI Outage", key="btn_simulate_outage",
-                             help="Forces the next investigation to use the rule-only fallback path. Auto-resets after one use."):
-                    demo_controls.trigger_outage()
-                    result = ai_investigator.investigate(
-                        row.to_dict(),
-                        json.loads(row["rule_breakdown"]) if isinstance(row["rule_breakdown"], str) else row["rule_breakdown"],
-                        force_refresh=True,
+                if _user_actions.get("simulate_outage", False):
+                    st.divider()
+                    st.subheader("Demo Controls")
+                    st.caption(
+                        "Testing convenience only -- forces a one-time AI outage "
+                        "to demonstrate the graceful-degradation fallback."
                     )
 
-                    st.error(
-                        "**AI Investigator Unavailable -- Falling Back to "
-                        "Rule-Only Scoring (Degraded Mode)**"
-                    )
+                    # Save normal verdict for contrast display
+                    normal_verdict = verdict
+                    normal_confidence = confidence
+                    normal_action = action
 
-                    d_verdict = result.get("verdict", "unknown")
-                    d_action = result.get("recommended_action", "N/A")
-                    d_reasoning = result.get("reasoning", "N/A")
-                    raw_score = row["raw_risk_score"]
+                    if st.button("Simulate AI Outage", key="btn_simulate_outage",
+                                 help="Forces the next investigation to use the rule-only fallback path. Auto-resets after one use."):
+                        demo_controls.trigger_outage()
+                        result = ai_investigator.investigate(
+                            row.to_dict(),
+                            json.loads(row["rule_breakdown"]) if isinstance(row["rule_breakdown"], str) else row["rule_breakdown"],
+                            force_refresh=True,
+                        )
 
-                    st.markdown(
-                        f"**Normal mode verdict:** {normal_verdict} "
-                        f"(confidence {normal_confidence}/100)"
-                    )
-                    st.markdown(
-                        f"**Degraded mode verdict:** {d_verdict} -- "
-                        f"{d_action} (raw_risk_score: {raw_score})"
-                    )
-                    st.caption(f"Reasoning: {d_reasoning}")
+                        st.error(
+                            "**AI Investigator Unavailable -- Falling Back to "
+                            "Rule-Only Scoring (Degraded Mode)**"
+                        )
+
+                        d_verdict = result.get("verdict", "unknown")
+                        d_action = result.get("recommended_action", "N/A")
+                        d_reasoning = result.get("reasoning", "N/A")
+                        raw_score = row["raw_risk_score"]
+
+                        st.markdown(
+                            f"**Normal mode verdict:** {normal_verdict} "
+                            f"(confidence {normal_confidence}/100)"
+                        )
+                        st.markdown(
+                            f"**Degraded mode verdict:** {d_verdict} -- "
+                            f"{d_action} (raw_risk_score: {raw_score})"
+                        )
+                        st.caption(f"Reasoning: {d_reasoning}")
 
                 # Counterfactual explanation
                 st.divider()
