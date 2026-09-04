@@ -37,7 +37,7 @@ desktop.ini
 # Testing / Coverage
 .coverage
 .pytest_cache/
-htmlcov/
+
 coverage.xml
 
 # Temporary audit/debug scripts (generated during development sessions,
